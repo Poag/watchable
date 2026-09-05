@@ -1,0 +1,20 @@
+# Copy to docker-compose.yml at the repo root (or reference this path
+# directly with `docker compose -f docker/docker-compose.example.yml`),
+# adjust the volumes, and fill in a real env_file with your tokens/api keys.
+services:
+  watchable:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: watchable:latest
+    container_name: watchable
+    restart: unless-stopped
+    env_file:
+      - ../.env # PLEX_TOKEN=..., JELLYFIN_API_KEY=..., etc. -- see config.example.yaml
+    volumes:
+      - ../config.yaml:/config/config.yaml:ro
+      - ./data:/data
+    # `run` (the image's default command) loops on sync.schedule.interval_minutes.
+    # Swap to `["sync", "/config/config.yaml"]` if you'd rather trigger runs
+    # yourself, e.g. with `docker compose run --rm watchable sync /config/config.yaml`
+    # from a host cron job.

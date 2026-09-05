@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "watchable"
+version = "0.1.0"
+description = "Sync watch state (played/unplayed, progress) between Plex, Jellyfin, and Emby through a local database, with YAML-configured directional or bidirectional sync rules."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Poag" }]
+keywords = ["plex", "jellyfin", "emby", "media-server", "watch-state", "sync", "home-lab"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "requests>=2.31",
+    "PyYAML>=6.0",
+    "pydantic>=2.4",
+    "click>=8.1",
+    "rich>=13.7",
+    "tenacity>=8.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "responses>=0.25",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "types-PyYAML",
+]
+
+[project.urls]
+Homepage = "https://github.com/Poag/watchable"
+Issues = "https://github.com/Poag/watchable/issues"
+
+[project.scripts]
+watchable = "watchable.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+watchable = ["py.typed"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test assertions/fixtures read better as one line than reflowed.
+"tests/*" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true

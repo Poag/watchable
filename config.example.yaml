@@ -1,0 +1,80 @@
+# watchable configuration
+#
+# Copy this file to config.yaml and fill in your own servers, users, and
+# sync pairs. Full reference: docs/CONFIGURATION.md
+#
+# Secrets can be inlined, but ${VAR} / ${VAR:-default} references are
+# expanded against the environment at load time -- keeping tokens out of a
+# file you might commit is strongly recommended.
+
+database:
+  path: ./data/watchable.db
+
+log_level: INFO
+
+# Every media server watchable talks to. The map key (e.g. `plex_main`) is
+# an internal name you choose -- it's what `users[].accounts` and
+# `sync.pairs[].source/target` reference below.
+servers:
+  plex_main:
+    type: plex
+    url: https://plex.internal.example.lan:32400
+    # Plex scopes watch state to the token making the request, so this must
+    # be a *personal* Plex token, not necessarily the server owner's admin
+    # token, if `plex_main` here is used for someone other than the owner.
+    # See docs/PROVIDERS.md#plex.
+    token: ${PLEX_TOKEN}
+    verify_tls: false # self-signed/local certs are common for Plex
+
+  jellyfin_main:
+    type: jellyfin
+    url: http://jellyfin.internal.example.lan:8096
+    api_key: ${JELLYFIN_API_KEY}
+
+  emby_main:
+    type: emby
+    url: http://emby.internal.example.lan:8096
+    api_key: ${EMBY_API_KEY}
+
+# Maps one real person to their account on each server. A user only
+# participates in a sync pair if they have an entry for *both* of that
+# pair's servers.
+users:
+  - name: alex
+    accounts:
+      plex_main: ${ALEX_PLEX_TOKEN}
+      jellyfin_main: 1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d
+      emby_main: 9f8e7d6c5b4a3928374655647382910a
+
+sync:
+  # Default conflict resolution for bidirectional pairs when both sides
+  # changed since the last sync. Overridable per-pair. Options:
+  #   most_watched  - whichever side progressed further wins (never rewinds)
+  #   latest        - whichever side has the more recent last-played time wins
+  #   source_wins   - the pair's `source` always wins
+  #   target_wins   - the pair's `target` always wins
+  conflict_strategy: most_watched
+
+  pairs:
+    # One-way: Plex is authoritative, Jellyfin just mirrors it. Watching
+    # something on Jellyfin never pushes back to Plex.
+    - name: plex-to-jellyfin
+      source: plex_main
+      target: jellyfin_main
+      direction: one-way
+      media_types: [movie, episode]
+
+    # Bidirectional: either server can be the one that changed; watchable
+    # reconciles both ways using `conflict_strategy`.
+    - name: jellyfin-emby-mirror
+      source: jellyfin_main
+      target: emby_main
+      direction: bidirectional
+      media_types: [movie, episode]
+      conflict_strategy: latest # override the global default for this pair
+
+  # Optional: only used by `watchable run` (a long-lived process, e.g. in
+  # the provided Docker image). `watchable sync` always runs once and exits;
+  # a cron job or systemd timer calling it is the alternative to `run`.
+  schedule:
+    interval_minutes: 30

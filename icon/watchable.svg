@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-labelledby="watchable-icon-title">
+  <title id="watchable-icon-title">watchable</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+
+  <!-- app-icon background -->
+  <rect x="0" y="0" width="512" height="512" rx="112" ry="112" fill="url(#bg)"/>
+
+  <!-- sync ring: two rotationally-symmetric arrows chasing each other,
+       standing in for "watch state moving between servers" -->
+  <g fill="none" stroke="#F8FAFC" stroke-width="34" stroke-linecap="round">
+    <path d="M 299.48,93.72 A 168,168 0 0 1 299.48,418.28"/>
+    <path d="M 212.52,418.28 A 168,168 0 0 1 212.52,93.72"/>
+  </g>
+  <g fill="#F8FAFC">
+    <path d="M 270.60,426.01 L 319.01,435.92 L 307.57,393.23 Z"/>
+    <path d="M 241.40,85.99 L 192.99,76.08 L 204.43,118.77 Z"/>
+  </g>
+
+  <!-- play triangle: "watch" -->
+  <path d="M 197.50,181.00 L 197.50,331.00 L 336.60,256.00 Z" fill="#F8FAFC"/>
+</svg>
