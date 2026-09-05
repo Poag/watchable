@@ -10,6 +10,15 @@
 database:
   path: ./data/watchable.db
 
+# Point-in-time snapshots of the database (so a bad sync or conflict
+# resolution decision can be undone with `watchable backup restore`).
+# `watchable backup create` always works regardless of these settings;
+# `interval_hours` just makes `watchable run` take one on its own cadence.
+backup:
+  dir: ./data/backups
+  interval_hours: 24 # optional; only used by `watchable run`
+  keep_days: 30 # backups older than this are purged after each backup
+
 log_level: INFO
 
 # Every media server watchable talks to. The map key (e.g. `plex_main`) is

@@ -7,6 +7,7 @@ a web UI) can build a working engine without going through click.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from watchable.config import AppConfig, ServerConfig
 from watchable.db import Database
@@ -42,6 +43,14 @@ def _build_client(server: ServerConfig) -> MediaServerClient:
 
 def open_database(config: AppConfig) -> Database:
     return Database(config.database.path)
+
+
+def database_path(config: AppConfig) -> Path:
+    return Path(config.database.path)
+
+
+def backup_dir_path(config: AppConfig) -> Path:
+    return Path(config.backup.dir)
 
 
 def configure_logging(level: str) -> None:

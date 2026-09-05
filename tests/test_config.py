@@ -114,6 +114,48 @@ def test_empty_pairs_rejected(tmp_path, monkeypatch):
         load_config(path)
 
 
+def test_backup_defaults(tmp_path, monkeypatch):
+    monkeypatch.setenv("TEST_PLEX_TOKEN", "abc123")
+    path = tmp_path / "config.yaml"
+    path.write_text(VALID_YAML)
+
+    config = load_config(path)
+
+    assert config.backup.dir == "./data/backups"
+    assert config.backup.interval_hours is None
+    assert config.backup.keep_days == 30
+
+
+def test_backup_interval_hours_must_be_positive(tmp_path, monkeypatch):
+    monkeypatch.setenv("TEST_PLEX_TOKEN", "abc123")
+    bad = VALID_YAML + "backup:\n  interval_hours: 0\n"
+    path = tmp_path / "config.yaml"
+    path.write_text(bad)
+    with pytest.raises(ConfigError, match="interval_hours"):
+        load_config(path)
+
+
+def test_backup_keep_days_must_be_positive(tmp_path, monkeypatch):
+    monkeypatch.setenv("TEST_PLEX_TOKEN", "abc123")
+    bad = VALID_YAML + "backup:\n  keep_days: -1\n"
+    path = tmp_path / "config.yaml"
+    path.write_text(bad)
+    with pytest.raises(ConfigError, match="keep_days"):
+        load_config(path)
+
+
+def test_backup_keep_days_null_disables_purging(tmp_path, monkeypatch):
+    monkeypatch.setenv("TEST_PLEX_TOKEN", "abc123")
+    yaml_text = VALID_YAML + "backup:\n  keep_days: null\n  interval_hours: 6\n"
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml_text)
+
+    config = load_config(path)
+
+    assert config.backup.keep_days is None
+    assert config.backup.interval_hours == 6
+
+
 def test_duplicate_server_keys_rejected():
     # servers is authored as a mapping in YAML, so duplicate keys are a YAML-level
     # concept (last one wins) -- this instead checks the safety net in AppConfig

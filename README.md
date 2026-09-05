@@ -32,6 +32,9 @@ changed. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for why.
   and sync pairs. No database setup, no web UI to click through.
 - **A local audit trail** (`watchable log`) of every push it's made, and
   `--dry-run` to see what a sync *would* do before it does it.
+- **Database backups** (`watchable backup create/list/restore/purge`), on
+  their own configurable schedule if you use `watchable run`, with old
+  backups purged automatically.
 
 ## Quickstart
 
@@ -58,6 +61,20 @@ it on a schedule is the simplest way to run it continuously. If you'd
 rather run it as a long-lived process instead (e.g. the provided Docker
 image), set `sync.schedule.interval_minutes` in your config and use
 `watchable run` in place of `watchable sync`.
+
+### Backups
+
+```
+watchable backup create config.yaml    # snapshot the database now
+watchable backup list config.yaml      # see what's available
+watchable backup restore config.yaml <file>   # roll back to a snapshot
+watchable backup purge config.yaml     # delete backups older than backup.keep_days
+```
+
+Set `backup.interval_hours` in your config to have `watchable run` also
+take backups on its own schedule (independent of the sync interval),
+purging anything older than `backup.keep_days` afterwards. See
+[`docs/CONFIGURATION.md`](docs/CONFIGURATION.md#backup).
 
 ### Docker
 

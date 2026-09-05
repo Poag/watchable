@@ -136,3 +136,26 @@ In short:
   phase's read source.
 - `sync_log` -- append-only audit trail of every push (and skip) watchable
   has made, surfaced by `watchable log`.
+
+## Backups
+
+`watchable/backup.py` snapshots and restores the whole database file (all
+four tables above, together) via sqlite3's own backup API rather than a
+plain file copy, so a snapshot taken while a sync is mid-write (WAL mode)
+is still a consistent point-in-time copy rather than a torn one. A restore
+is the same operation in reverse: the backup file is copied back over the
+live database, and any leftover `-wal`/`-shm` sidecar files next to it are
+removed so stale WAL frames from before the restore can't get replayed
+onto it.
+
+Restoring is deliberately all-or-nothing rather than a targeted
+"restore just `watch_state`" -- a partial restore could leave `watch_state`
+rows pointing at `item_id`s that `resolve_or_create_item` has since merged
+or repointed, silently attaching old watch state to the wrong item.
+Rolling back the whole file avoids that class of bug entirely.
+
+`watchable run`'s loop tracks the sync schedule and the backup schedule
+(`backup.interval_hours`) independently, waking for whichever is due next
+-- a backup cadence shorter or longer than the sync interval both work.
+`watchable backup create`/`list`/`restore`/`purge` operate the same code
+path on demand, for cron-driven setups that don't use `run` at all.

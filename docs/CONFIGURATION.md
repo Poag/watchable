@@ -13,6 +13,8 @@ cp config.example.yaml config.yaml
 database:
   path: ./data/watchable.db   # SQLite file; created (and its parent dir) if missing
 
+backup: { ... }                # optional; see below
+
 log_level: INFO               # DEBUG | INFO | WARNING | ERROR
 
 servers: { ... }              # see below
@@ -129,6 +131,38 @@ Only read by `watchable run` (a long-lived loop -- see the Docker image in
 `docker/`). `watchable sync` always runs once and exits; if you're running
 watchable via cron or a systemd timer instead of the container, leave this
 unset and let the scheduler own the interval.
+
+## `backup`
+
+```yaml
+backup:
+  dir: ./data/backups     # default: ./data/backups
+  interval_hours: 24      # optional; only read by `watchable run`
+  keep_days: 30           # default: 30; null disables purging
+```
+
+A backup is a full point-in-time copy of the database file (`items`,
+`item_guids`, `watch_state`, and `sync_log` together), taken with sqlite3's
+own backup API so it's always a consistent snapshot even if a sync is
+mid-write. Restoring one is an all-or-nothing rollback to that moment --
+there's no partial "just the watch state" restore, since `watch_state` rows
+only make sense alongside the item/guid rows they reference.
+
+- `watchable backup create config.yaml` -- take a backup right now,
+  regardless of these settings, then purge anything older than `keep_days`.
+- `watchable backup list config.yaml` -- list backups, newest first.
+- `watchable backup restore config.yaml <file>` -- overwrite the live
+  database with a backup (prompts for confirmation unless `--yes`). Make
+  sure no `sync`/`run` is running concurrently first.
+- `watchable backup purge config.yaml [--older-than-days N]` -- delete
+  backups older than `keep_days` (or `N`, if given).
+- `interval_hours`: if set, `watchable run` also takes a backup on this
+  cadence -- independent of `sync.schedule.interval_minutes` -- and purges
+  old ones afterwards. Unset (the default) means `run` never backs up on
+  its own; only explicit `watchable backup create` calls do.
+- `keep_days`: backups older than this are deleted every time a backup is
+  taken (by `run`'s schedule or `backup create`). `null` keeps every backup
+  forever.
 
 ## Secrets and environment variables
 
