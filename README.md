@@ -80,8 +80,13 @@ purging anything older than `backup.keep_days` afterwards. See
 
 ```
 docker build -t watchable -f docker/Dockerfile .
-docker run -v ./config.yaml:/config/config.yaml:ro -v ./data:/data watchable
+docker run -e PUID=1000 -e PGID=1000 \
+  -v ./config.yaml:/config/config.yaml:ro -v ./data:/data watchable
 ```
+
+The container starts as root and drops to the built-in `watchable` user
+remapped to `PUID`/`PGID` (default 1000:1000) before running anything --
+set them to match whoever owns `./data` on the host if that's not 1000:1000.
 
 Or see [`docker/docker-compose.example.yml`](docker/docker-compose.example.yml).
 Every push to `main` publishes a multi-arch (`linux/amd64` + `linux/arm64`)

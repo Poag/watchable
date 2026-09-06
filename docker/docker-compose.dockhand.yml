@@ -37,6 +37,11 @@ services:
     command: ["${WATCHABLE_COMMAND:?Set WATCHABLE_COMMAND to run or sync}", "/config/config.yaml"]
     environment:
       TZ: ${TZ:?Set TZ, e.g. UTC}
+      # The image starts as root and drops to the `watchable` user remapped
+      # to these ids (default 1000:1000) -- set them to match whatever user
+      # owns WATCHABLE_CONFIG_DIR/WATCHABLE_DATA_PATH on the host.
+      PUID: ${PUID:?Set PUID, e.g. 1000}
+      PGID: ${PGID:?Set PGID, e.g. 1000}
       # Referenced by config.yaml as ${PLEX_TOKEN} / ${JELLYFIN_API_KEY} /
       # ${EMBY_API_KEY} -- add one line per extra per-person token your
       # config.yaml references (e.g. ALEX_PLEX_TOKEN, SAM_PLEX_TOKEN), since
