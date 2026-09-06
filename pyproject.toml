@@ -26,6 +26,7 @@ classifiers = [
 ]
 dependencies = [
     "requests>=2.31",
+    "urllib3>=2.0",
     "PyYAML>=6.0",
     "pydantic>=2.4",
     "click>=8.1",

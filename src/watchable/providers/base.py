@@ -9,9 +9,14 @@ change.
 from __future__ import annotations
 
 import abc
+import logging
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
+
+import urllib3
+
+logger = logging.getLogger("watchable.providers")
 
 #: Media types watchable knows how to sync. Providers translate their own
 #: type names (e.g. Plex's "movie"/"episode", Jellyfin's "Movie"/"Episode")
@@ -113,6 +118,13 @@ class MediaServerClient(abc.ABC):
         self.base_url = base_url.rstrip("/")
         self.verify_tls = verify_tls
         self.timeout = timeout
+        if not verify_tls:
+            # requests/urllib3 otherwise emit InsecureRequestWarning on every
+            # single unverified request -- verify_tls=False is a config
+            # choice the operator already made explicitly (self-signed local
+            # certs), so note it once here instead of spamming the log.
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            logger.warning("TLS certificate verification is disabled for server %r", name)
 
     @abc.abstractmethod
     def test_connection(self) -> None:
