@@ -163,10 +163,38 @@ class DatabaseConfig(BaseModel):
     path: str = "./data/watchable.db"
 
 
+class BackupConfig(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    dir: str = "./data/backups"
+    interval_hours: float | None = Field(
+        default=None, description="If set, `watchable run` also creates a backup on this cadence"
+    )
+    keep_days: float | None = Field(
+        default=30,
+        description="Backups older than this are purged after each backup; null disables purging",
+    )
+
+    @field_validator("interval_hours")
+    @classmethod
+    def _check_interval_hours(cls, value: float | None) -> float | None:
+        if value is not None and value <= 0:
+            raise ConfigError("backup.interval_hours must be positive")
+        return value
+
+    @field_validator("keep_days")
+    @classmethod
+    def _check_keep_days(cls, value: float | None) -> float | None:
+        if value is not None and value <= 0:
+            raise ConfigError("backup.keep_days must be positive")
+        return value
+
+
 class AppConfig(BaseModel):
     model_config = {"extra": "forbid"}
 
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    backup: BackupConfig = Field(default_factory=BackupConfig)
     log_level: str = "INFO"
     servers: list[ServerConfig]
     users: list[UserConfig] = Field(default_factory=list)
