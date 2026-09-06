@@ -21,6 +21,14 @@
 # config.yaml file) rather than bind-mounting config.yaml directly --
 # Unraid's Docker UI doesn't handle single-file mappings well (it tends to
 # create the host path as a directory instead of bind-mounting the file).
+#
+# Volumes use the long form with an explicit `type: bind` rather than the
+# short "source:target" form -- Compose's short form decides bind-mount vs.
+# named-volume by whether `source` *looks like* a path (starts with /, ./,
+# ../, ~/) before env vars are substituted, and some UIs (Dockhand's compose
+# validator included) apply that check to the raw `${VAR:?...}` text itself,
+# misreading it as a reference to an undeclared named volume. `type: bind`
+# removes the ambiguity outright.
 services:
   watchable:
     image: ${WATCHABLE_IMAGE:?Set WATCHABLE_IMAGE, e.g. ghcr.io/poag/watchable:latest}
@@ -39,5 +47,10 @@ services:
       JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:-}
       EMBY_API_KEY: ${EMBY_API_KEY:-}
     volumes:
-      - ${WATCHABLE_CONFIG_DIR:?Set WATCHABLE_CONFIG_DIR to a directory containing config.yaml, e.g. ./config}:/config:ro
-      - ${WATCHABLE_DATA_PATH:?Set WATCHABLE_DATA_PATH, e.g. ./data}:/data
+      - type: bind
+        source: ${WATCHABLE_CONFIG_DIR:?Set WATCHABLE_CONFIG_DIR to a directory containing config.yaml, e.g. ./config}
+        target: /config
+        read_only: true
+      - type: bind
+        source: ${WATCHABLE_DATA_PATH:?Set WATCHABLE_DATA_PATH, e.g. ./data}
+        target: /data
