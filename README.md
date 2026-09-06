@@ -84,7 +84,8 @@ docker run -v ./config.yaml:/config/config.yaml:ro -v ./data:/data watchable
 ```
 
 Or see [`docker/docker-compose.example.yml`](docker/docker-compose.example.yml).
-Every push to `main` publishes an image to `ghcr.io/poag/watchable`.
+Every push to `main` publishes a multi-arch (`linux/amd64` + `linux/arm64`)
+image to `ghcr.io/poag/watchable`.
 
 For [Dockhand](https://dockhand.pro) or any other environment-variable-driven
 deployment, see [`docker/docker-compose.dockhand.yml`](docker/docker-compose.dockhand.yml)
