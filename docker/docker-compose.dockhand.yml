@@ -1,7 +1,11 @@
 # A Dockhand-friendly stack: every host-specific bit is pulled from an
-# environment variable with a sane default, and the image is pulled from
-# GHCR (published by .github/workflows/docker-publish.yml) rather than
-# built locally, since a Dockhand node won't have this repo checked out.
+# environment variable, and the image is pulled from GHCR (published by
+# .github/workflows/docker-publish.yml) rather than built locally, since a
+# Dockhand node won't have this repo checked out.
+#
+# Every variable below is required (deploy fails with a clear message if
+# it's missing) except PLEX_TOKEN/JELLYFIN_API_KEY/EMBY_API_KEY, which stay
+# optional since most setups don't use all three servers.
 #
 # In Dockhand: paste this file into a new stack, then add/edit the
 # variables below (Environment tab, or an uploaded .env) -- secrets are
@@ -14,20 +18,21 @@
 # handful of things that vary per-deployment (image tag, paths, schedule).
 services:
   watchable:
-    image: ${WATCHABLE_IMAGE:-ghcr.io/poag/watchable:latest}
-    container_name: ${WATCHABLE_CONTAINER_NAME:-watchable}
-    restart: ${WATCHABLE_RESTART_POLICY:-unless-stopped}
-    command: ["${WATCHABLE_COMMAND:-run}", "/config/config.yaml"]
+    image: ${WATCHABLE_IMAGE:?Set WATCHABLE_IMAGE, e.g. ghcr.io/poag/watchable:latest}
+    container_name: ${WATCHABLE_CONTAINER_NAME:?Set WATCHABLE_CONTAINER_NAME, e.g. watchable}
+    restart: ${WATCHABLE_RESTART_POLICY:?Set WATCHABLE_RESTART_POLICY, e.g. unless-stopped}
+    command: ["${WATCHABLE_COMMAND:?Set WATCHABLE_COMMAND to run or sync}", "/config/config.yaml"]
     environment:
-      TZ: ${TZ:-UTC}
+      TZ: ${TZ:?Set TZ, e.g. UTC}
       # Referenced by config.yaml as ${PLEX_TOKEN} / ${JELLYFIN_API_KEY} /
       # ${EMBY_API_KEY} -- add one line per extra per-person token your
       # config.yaml references (e.g. ALEX_PLEX_TOKEN, SAM_PLEX_TOKEN), since
       # Plex scopes watch state to the token making the request. See
-      # docs/CONFIGURATION.md and config.example.yaml.
+      # docs/CONFIGURATION.md and config.example.yaml. Left optional here
+      # since most setups don't use all three servers.
       PLEX_TOKEN: ${PLEX_TOKEN:-}
       JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:-}
       EMBY_API_KEY: ${EMBY_API_KEY:-}
     volumes:
-      - ${WATCHABLE_CONFIG_PATH:-./config.yaml}:/config/config.yaml:ro
-      - ${WATCHABLE_DATA_PATH:-./data}:/data
+      - ${WATCHABLE_CONFIG_PATH:?Set WATCHABLE_CONFIG_PATH, e.g. ./config.yaml}:/config/config.yaml:ro
+      - ${WATCHABLE_DATA_PATH:?Set WATCHABLE_DATA_PATH, e.g. ./data}:/data
