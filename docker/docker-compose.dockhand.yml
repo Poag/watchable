@@ -1,0 +1,33 @@
+# A Dockhand-friendly stack: every host-specific bit is pulled from an
+# environment variable with a sane default, and the image is pulled from
+# GHCR (published by .github/workflows/docker-publish.yml) rather than
+# built locally, since a Dockhand node won't have this repo checked out.
+#
+# In Dockhand: paste this file into a new stack, then add/edit the
+# variables below (Environment tab, or an uploaded .env) -- secrets are
+# stored encrypted and injected at deploy time. For plain `docker compose`,
+# copy `.env.dockhand.example` next to this file as `.env` and fill it in.
+#
+# watchable itself is still configured from config.yaml (WATCHABLE_CONFIG
+# below) -- this compose file only supplies the environment variables that
+# config.yaml's own ${VAR} references resolve against at runtime, plus the
+# handful of things that vary per-deployment (image tag, paths, schedule).
+services:
+  watchable:
+    image: ${WATCHABLE_IMAGE:-ghcr.io/poag/watchable:latest}
+    container_name: ${WATCHABLE_CONTAINER_NAME:-watchable}
+    restart: ${WATCHABLE_RESTART_POLICY:-unless-stopped}
+    command: ["${WATCHABLE_COMMAND:-run}", "/config/config.yaml"]
+    environment:
+      TZ: ${TZ:-UTC}
+      # Referenced by config.yaml as ${PLEX_TOKEN} / ${JELLYFIN_API_KEY} /
+      # ${EMBY_API_KEY} -- add one line per extra per-person token your
+      # config.yaml references (e.g. ALEX_PLEX_TOKEN, SAM_PLEX_TOKEN), since
+      # Plex scopes watch state to the token making the request. See
+      # docs/CONFIGURATION.md and config.example.yaml.
+      PLEX_TOKEN: ${PLEX_TOKEN:-}
+      JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:-}
+      EMBY_API_KEY: ${EMBY_API_KEY:-}
+    volumes:
+      - ${WATCHABLE_CONFIG_PATH:-./config.yaml}:/config/config.yaml:ro
+      - ${WATCHABLE_DATA_PATH:-./data}:/data

@@ -84,6 +84,14 @@ docker run -v ./config.yaml:/config/config.yaml:ro -v ./data:/data watchable
 ```
 
 Or see [`docker/docker-compose.example.yml`](docker/docker-compose.example.yml).
+Every push to `main` publishes an image to `ghcr.io/poag/watchable`.
+
+For [Dockhand](https://dockhand.pro) or any other environment-variable-driven
+deployment, see [`docker/docker-compose.dockhand.yml`](docker/docker-compose.dockhand.yml)
+and [`docker/.env.dockhand.example`](docker/.env.dockhand.example) -- it pulls
+the published GHCR image instead of building locally, and every
+deployment-specific setting (image tag, paths, restart policy, the secrets
+`config.yaml` references) comes from an environment variable.
 
 ## Example configuration
 
