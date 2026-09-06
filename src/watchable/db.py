@@ -206,6 +206,16 @@ class Database:
                     (key, item_id),
                 )
 
+            # Keep the stored title current rather than freezing whatever
+            # was seen the first time this item was created -- a provider
+            # can supply a better title later (e.g. this codebase learning
+            # to send an episode's show title instead of its own), and an
+            # item shouldn't be stuck with a stale or placeholder one
+            # forever. "Unknown" is providers' own fallback for genuinely
+            # missing data, so don't let it clobber a real title already stored.
+            if title and title != "Unknown":
+                conn.execute("UPDATE items SET title = ? WHERE id = ?", (title, item_id))
+
             return item_id
 
     # -- watch state ---------------------------------------------------------

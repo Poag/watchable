@@ -33,6 +33,36 @@ def test_resolve_or_create_item_creates_new(db):
     assert same_id == item_id
 
 
+def test_resolve_or_create_item_updates_title_on_later_pulls(db):
+    # A stale/placeholder title stored when an item was first seen
+    # shouldn't be stuck forever -- a later pull with a better title
+    # (e.g. a show's real name instead of a generic episode title)
+    # should correct it going forward.
+    item_id = db.resolve_or_create_item(
+        media_type="episode", title="Episode 6", year=None, guid_keys=("tvdb:81189:S02E06",)
+    )
+    assert db.get_item_title(item_id) == "Episode 6"
+
+    same_id = db.resolve_or_create_item(
+        media_type="episode", title="Breaking Bad", year=None, guid_keys=("tvdb:81189:S02E06",)
+    )
+
+    assert same_id == item_id
+    assert db.get_item_title(item_id) == "Breaking Bad"
+
+
+def test_resolve_or_create_item_unknown_title_does_not_clobber_stored_one(db):
+    item_id = db.resolve_or_create_item(
+        media_type="episode", title="Breaking Bad", year=None, guid_keys=("tvdb:81189:S02E06",)
+    )
+
+    db.resolve_or_create_item(
+        media_type="episode", title="Unknown", year=None, guid_keys=("tvdb:81189:S02E06",)
+    )
+
+    assert db.get_item_title(item_id) == "Breaking Bad"
+
+
 def test_resolve_or_create_item_matches_on_any_shared_key(db):
     first = db.resolve_or_create_item(
         media_type="movie", title="Shawshank", year=1994, guid_keys=("imdb:tt0111161", "tmdb:278")

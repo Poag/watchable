@@ -62,6 +62,11 @@ around:
   under only a tmdb id and later under only an imdb id, and a third server
   later reports *both*, `Database.resolve_or_create_item` merges the two
   existing item rows (and their watch-state history) into one.
+- An item's stored title isn't frozen at whatever was seen the first time
+  it was created -- every pull updates it (unless the new title is empty
+  or a provider's own "Unknown" placeholder for genuinely missing data),
+  so a stale or placeholder title self-corrects on the next run rather
+  than being stuck forever.
 
 ## Reconciliation logic
 
