@@ -7,15 +7,21 @@
 # expanded against the environment at load time -- keeping tokens out of a
 # file you might commit is strongly recommended.
 
+# Paths are relative to the working directory watchable runs from. Locally
+# that's wherever you invoke `watchable` from; in the Docker image it's
+# /data (the volume mount itself) -- so a path like "./data/watchable.db"
+# would create a second data/ directory nested inside that volume. If
+# you're not using the Docker image, feel free to point these at a data/
+# subdirectory of your own instead.
 database:
-  path: ./data/watchable.db
+  path: ./watchable.db
 
 # Point-in-time snapshots of the database (so a bad sync or conflict
 # resolution decision can be undone with `watchable backup restore`).
 # `watchable backup create` always works regardless of these settings;
 # `interval_hours` just makes `watchable run` take one on its own cadence.
 backup:
-  dir: ./data/backups
+  dir: ./backups
   interval_hours: 24 # optional; only used by `watchable run`
   keep_days: 30 # backups older than this are purged after each backup
 

@@ -11,7 +11,7 @@ cp config.example.yaml config.yaml
 
 ```yaml
 database:
-  path: ./data/watchable.db   # SQLite file; created (and its parent dir) if missing
+  path: ./watchable.db   # SQLite file; created (and its parent dir) if missing
 
 backup: { ... }                # optional; see below
 
@@ -21,6 +21,13 @@ servers: { ... }              # see below
 users: [ ... ]                # see below
 sync: { ... }                 # see below
 ```
+
+`database.path` and `backup.dir` are resolved relative to whatever directory
+watchable is running from. Locally that's wherever you invoke `watchable`
+from; the Docker image sets it to `/data` (the volume mount itself), so a
+path like `./data/watchable.db` there would create a second `data/`
+directory nested inside that volume rather than writing straight into it --
+use `./watchable.db` (or an absolute path) instead.
 
 ## `servers`
 
@@ -136,7 +143,7 @@ unset and let the scheduler own the interval.
 
 ```yaml
 backup:
-  dir: ./data/backups     # default: ./data/backups
+  dir: ./backups          # default: ./backups (see the working-directory note above)
   interval_hours: 24      # optional; only read by `watchable run`
   keep_days: 30           # default: 30; null disables purging
 ```

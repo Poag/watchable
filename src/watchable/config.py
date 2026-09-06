@@ -160,13 +160,16 @@ class SyncConfig(BaseModel):
 class DatabaseConfig(BaseModel):
     model_config = {"extra": "forbid"}
 
-    path: str = "./data/watchable.db"
+    # Relative to the process's working directory -- the Docker image sets
+    # that to /data (the volume mount itself), so a default of
+    # "./data/watchable.db" would nest a second data/ dir inside it.
+    path: str = "./watchable.db"
 
 
 class BackupConfig(BaseModel):
     model_config = {"extra": "forbid"}
 
-    dir: str = "./data/backups"
+    dir: str = "./backups"
     interval_hours: float | None = Field(
         default=None, description="If set, `watchable run` also creates a backup on this cadence"
     )

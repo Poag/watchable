@@ -114,6 +114,20 @@ def test_empty_pairs_rejected(tmp_path, monkeypatch):
         load_config(path)
 
 
+def test_database_path_default_has_no_nested_data_dir(tmp_path, monkeypatch):
+    # The Docker image's working directory *is* the /data volume, so a
+    # default like "./data/watchable.db" would nest a second data/ dir
+    # inside it -- see docs/CONFIGURATION.md's working-directory note.
+    monkeypatch.setenv("TEST_PLEX_TOKEN", "abc123")
+    no_path = VALID_YAML.replace("database:\n  path: ./data/watchable.db\n", "")
+    path = tmp_path / "config.yaml"
+    path.write_text(no_path)
+
+    config = load_config(path)
+
+    assert config.database.path == "./watchable.db"
+
+
 def test_backup_defaults(tmp_path, monkeypatch):
     monkeypatch.setenv("TEST_PLEX_TOKEN", "abc123")
     path = tmp_path / "config.yaml"
@@ -121,7 +135,7 @@ def test_backup_defaults(tmp_path, monkeypatch):
 
     config = load_config(path)
 
-    assert config.backup.dir == "./data/backups"
+    assert config.backup.dir == "./backups"
     assert config.backup.interval_hours is None
     assert config.backup.keep_days == 30
 
