@@ -95,6 +95,49 @@ def test_iter_watch_state_episode_fetches_series_guids():
     assert record.episode.show_guids == GuidSet(tvdb="81189")
     assert record.episode.season_number == 1
     assert record.episode.episode_number == 1
+    # userId is required by some Jellyfin/Emby versions for the unscoped
+    # /Items/{id} lookup -- always send it.
+    assert "userId=u1" in responses.calls[-1].request.url
+
+
+@responses.activate
+def test_iter_watch_state_series_guid_failure_does_not_lose_other_items():
+    responses.add(
+        responses.GET,
+        f"{BASE}/Users/u1/Items",
+        json={
+            "Items": [
+                {
+                    "Id": "e1",
+                    "Type": "Episode",
+                    "Name": "Pilot",
+                    "SeriesId": "broken-series",
+                    "ParentIndexNumber": 1,
+                    "IndexNumber": 1,
+                    "UserData": {"Played": True, "PlaybackPositionTicks": 0},
+                },
+                {
+                    "Id": "m1",
+                    "Type": "Movie",
+                    "Name": "Some Movie",
+                    "ProviderIds": {"Imdb": "tt0111161"},
+                    "UserData": {"Played": True, "PlaybackPositionTicks": 0},
+                },
+            ]
+        },
+    )
+    responses.add(responses.GET, f"{BASE}/Items/broken-series", status=400)
+    client = make_client()
+
+    records = list(client.iter_watch_state("u1", media_types=(EPISODE, MOVIE)))
+
+    # The episode is still yielded (with no show guids, so it won't match
+    # cross-server -- that's handled upstream) instead of the whole pull
+    # for this user aborting on the one bad series lookup.
+    assert {r.server_item_id for r in records} == {"e1", "m1"}
+    episode_record = next(r for r in records if r.server_item_id == "e1")
+    assert episode_record.episode is not None
+    assert episode_record.episode.show_guids == GuidSet()
 
 
 @responses.activate

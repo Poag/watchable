@@ -73,6 +73,12 @@ dashboard's user list, or via `GET /Users` with that key.
 - Setting in-progress position: `POST /Users/{userId}/Items/{itemId}/UserData`
   with `{"PlaybackPositionTicks": ...}` (1 tick = 100ns, so 1ms = 10,000 ticks).
 - Cross-server lookup: `GET /Items?Recursive=true&IncludeItemTypes=Movie&AnyProviderIdEquals=<scheme>.<value>`.
+- Resolving an episode's show guids: `GET /Items/{seriesId}?Fields=ProviderIds&userId={userId}`.
+  `userId` is required by some Jellyfin/Emby versions for this otherwise-
+  unscoped lookup -- omitting it returns `400 Bad Request` on those. If one
+  series' lookup still fails (a stale `SeriesId`, a transient error), that
+  show's episodes are treated as unmatchable (empty guids) rather than
+  aborting the rest of that user's pull -- logged as a warning, not an error.
 
 **Known limitations / verify against your version:**
 - `AnyProviderIdEquals` is the one part of this integration most likely to

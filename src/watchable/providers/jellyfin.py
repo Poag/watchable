@@ -21,6 +21,7 @@ straightforward of the three providers:
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable, Iterator
 from datetime import datetime, timezone
 from typing import Any
@@ -41,6 +42,8 @@ from watchable.providers.base import (
 
 _ITEM_TYPE_FOR_MEDIA = {MOVIE: "Movie", EPISODE: "Episode"}
 _TICKS_PER_MS = 10_000  # Jellyfin/Emby ticks are 100ns units
+
+logger = logging.getLogger("watchable.providers.jellyfin")
 
 
 def _ticks_to_ms(ticks: int | None) -> int:
@@ -158,7 +161,7 @@ class JellyfinClient(MediaServerClient):
             series_id = item.get("SeriesId")
             if series_id:
                 if series_id not in series_guid_cache:
-                    series_guid_cache[series_id] = self._fetch_item_guids(series_id)
+                    series_guid_cache[series_id] = self._fetch_series_guids(series_id, server_user_id)
                 show_guids = series_guid_cache[series_id]
             else:
                 show_guids = GuidSet()
@@ -185,9 +188,30 @@ class JellyfinClient(MediaServerClient):
             last_played_at=_parse_iso(user_data.get("LastPlayedDate")),
         )
 
-    def _fetch_item_guids(self, item_id: str) -> GuidSet:
-        data = self._request("GET", f"/Items/{item_id}", params={"Fields": "ProviderIds"})
+    def _fetch_item_guids(self, item_id: str, server_user_id: str) -> GuidSet:
+        # userId is required by some Jellyfin/Emby versions for this
+        # endpoint (others accept it unscoped) -- always sending it is the
+        # version that works everywhere observed so far.
+        data = self._request(
+            "GET", f"/Items/{item_id}", params={"Fields": "ProviderIds", "userId": server_user_id}
+        )
         return _extract_guids(data)
+
+    def _fetch_series_guids(self, series_id: str, server_user_id: str) -> GuidSet:
+        """Best-effort: a series lookup failing shouldn't lose every other
+        item pulled in the same run -- log it and treat the show as
+        unmatchable (its episodes are then skipped downstream as having no
+        external ids, the same as any other item watchable can't match).
+        """
+        try:
+            return self._fetch_item_guids(series_id, server_user_id)
+        except ProviderError:
+            logger.warning(
+                "Could not resolve guids for series %s -- its episodes will be skipped this run",
+                series_id,
+                exc_info=True,
+            )
+            return GuidSet()
 
     def set_watch_state(
         self,
