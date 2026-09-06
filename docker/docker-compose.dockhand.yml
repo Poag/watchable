@@ -12,10 +12,15 @@
 # stored encrypted and injected at deploy time. For plain `docker compose`,
 # copy `.env.dockhand.example` next to this file as `.env` and fill it in.
 #
-# watchable itself is still configured from config.yaml (WATCHABLE_CONFIG
-# below) -- this compose file only supplies the environment variables that
-# config.yaml's own ${VAR} references resolve against at runtime, plus the
-# handful of things that vary per-deployment (image tag, paths, schedule).
+# watchable itself is still configured from config.yaml -- this compose
+# file only supplies the environment variables that config.yaml's own
+# ${VAR} references resolve against at runtime, plus the handful of things
+# that vary per-deployment (image tag, paths, schedule).
+#
+# WATCHABLE_CONFIG_DIR is mounted as a *directory* (must contain a
+# config.yaml file) rather than bind-mounting config.yaml directly --
+# Unraid's Docker UI doesn't handle single-file mappings well (it tends to
+# create the host path as a directory instead of bind-mounting the file).
 services:
   watchable:
     image: ${WATCHABLE_IMAGE:?Set WATCHABLE_IMAGE, e.g. ghcr.io/poag/watchable:latest}
@@ -34,5 +39,5 @@ services:
       JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:-}
       EMBY_API_KEY: ${EMBY_API_KEY:-}
     volumes:
-      - ${WATCHABLE_CONFIG_PATH:?Set WATCHABLE_CONFIG_PATH, e.g. ./config.yaml}:/config/config.yaml:ro
+      - ${WATCHABLE_CONFIG_DIR:?Set WATCHABLE_CONFIG_DIR to a directory containing config.yaml, e.g. ./config}:/config:ro
       - ${WATCHABLE_DATA_PATH:?Set WATCHABLE_DATA_PATH, e.g. ./data}:/data
