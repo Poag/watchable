@@ -166,7 +166,10 @@ only make sense alongside the item/guid rows they reference.
 - `interval_hours`: if set, `watchable run` also takes a backup on this
   cadence -- independent of `sync.schedule.interval_minutes` -- and purges
   old ones afterwards. Unset (the default) means `run` never backs up on
-  its own; only explicit `watchable backup create` calls do.
+  its own; only explicit `watchable backup create` calls do. On startup,
+  `run` checks for an existing backup younger than `interval_hours` and
+  waits out the remainder of the interval instead of taking one
+  immediately -- a container restart doesn't reset the schedule.
 - `keep_days`: backups older than this are deleted every time a backup is
   taken (by `run`'s schedule or `backup create`). `null` keeps every backup
   forever.

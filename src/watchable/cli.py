@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -19,6 +20,7 @@ from watchable.providers.base import ProviderError
 from watchable.sync import SyncEngine
 
 console = Console()
+logger = logging.getLogger("watchable.cli")
 
 
 @click.group()
@@ -96,7 +98,9 @@ def run_cmd(config_path: str, dry_run: bool) -> None:
     console.print(f"Running every {interval} minute(s). Press Ctrl+C to stop.")
     now = time.monotonic()
     next_sync_at = now
-    next_backup_at = now if backup_interval_seconds else None
+    next_backup_at = None
+    if backup_interval_seconds is not None:
+        next_backup_at = _initial_backup_deadline(config, backup_interval_seconds)
 
     while True:
         now = time.monotonic()
@@ -143,6 +147,7 @@ def backup_group() -> None:
 def backup_create_cmd(config_path: str) -> None:
     """Take a backup of the database now."""
     config = _load_or_exit(config_path)
+    configure_logging(config.log_level)
     _run_backup(config)
 
 
@@ -210,11 +215,29 @@ def backup_purge_cmd(config_path: str, older_than_days: float | None) -> None:
 
 def _run_backup(config: AppConfig) -> None:
     backup_path = create_backup(database_path(config), backup_dir_path(config))
-    console.print(f"Backed up database to {backup_path}")
+    logger.info("Backed up database to %s", backup_path)
     if config.backup.keep_days is not None:
         removed = purge_old_backups(backup_dir_path(config), config.backup.keep_days)
         if removed:
-            console.print(f"Purged {len(removed)} backup(s) older than {config.backup.keep_days} day(s)")
+            logger.info("Purged %d backup(s) older than %s day(s)", len(removed), config.backup.keep_days)
+
+
+def _initial_backup_deadline(config: AppConfig, backup_interval_seconds: float) -> float:
+    """Monotonic deadline for `run`'s first backup.
+
+    If a backup already exists and is younger than the configured interval,
+    schedule the next one for whenever it's actually due instead of taking
+    one immediately -- otherwise every container restart (crash, redeploy,
+    host reboot) would trigger a fresh backup regardless of how recently one
+    was already taken.
+    """
+    existing = list_backups(backup_dir_path(config))
+    if existing:
+        age_seconds = (datetime.now(timezone.utc) - existing[0].created_at).total_seconds()
+        remaining = backup_interval_seconds - age_seconds
+        if remaining > 0:
+            return time.monotonic() + remaining
+    return time.monotonic()
 
 
 def _format_age(age: timedelta) -> str:
@@ -248,9 +271,14 @@ def _run_once(config: AppConfig, *, dry_run: bool) -> None:
     with open_database(config) as db:
         engine = SyncEngine(config, db, clients)
         stats = engine.run(dry_run=dry_run)
-    console.print(
-        f"pulled={stats.pulled} pushed={stats.pushed} dry_run_pushes={stats.dry_run_pushes} "
-        f"unchanged={stats.unchanged} skipped_no_match={stats.skipped_no_match} errors={stats.errors}"
+    logger.info(
+        "pulled=%d pushed=%d dry_run_pushes=%d unchanged=%d skipped_no_match=%d errors=%d",
+        stats.pulled,
+        stats.pushed,
+        stats.dry_run_pushes,
+        stats.unchanged,
+        stats.skipped_no_match,
+        stats.errors,
     )
     if stats.errors:
         sys.exit(1)
