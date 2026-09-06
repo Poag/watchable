@@ -132,6 +132,7 @@ class PlexClient(MediaServerClient):
                 show_guids=show_guids,
                 season_number=int(video.get("parentIndex", 0) or 0),
                 episode_number=int(video.get("index", 0) or 0),
+                show_title=video.get("grandparentTitle", "Unknown"),
             )
             yield self._record_from_video(video, EPISODE, episode=episode, guids=GuidSet())
 

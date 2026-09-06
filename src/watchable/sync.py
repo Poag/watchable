@@ -108,8 +108,12 @@ class SyncEngine:
             stats.skipped_no_match += 1
             logger.debug("Skipping %r from %s: no external ids to match on", record.title, server_key)
             return
+        # For episodes, the item's stored title is the *show's* title (e.g.
+        # "Andor"), not the individual episode's -- get_item_display_name
+        # composes "Andor S01E01" from this plus a stored guid key.
+        title = record.episode.show_title if record.episode else record.title
         item_id = self.db.resolve_or_create_item(
-            media_type=record.media_type, title=record.title, year=None, guid_keys=guid_keys
+            media_type=record.media_type, title=title or record.title, year=None, guid_keys=guid_keys
         )
         self.db.record_watch_state(item_id=item_id, user_name=user_name, server_key=server_key, record=record)
         stats.pulled += 1
@@ -170,7 +174,7 @@ class SyncEngine:
         stats: SyncStats,
         dry_run: bool,
     ) -> None:
-        title = self.db.get_item_title(item_id)
+        title = self.db.get_item_display_name(item_id)
 
         if pair.direction == Direction.ONE_WAY:
             assert source_state is not None
@@ -296,7 +300,10 @@ class SyncEngine:
                 action="dry_run_push", detail=detail,
             )
             stats.dry_run_pushes += 1
-            stats.note(f"[dry-run] would push {title!r}: {from_server_key} -> {to_server_key} ({detail})")
+            stats.note(
+                f"[dry-run] would push {title!r} ({user_name}): "
+                f"{from_server_key} -> {to_server_key} ({detail})"
+            )
             return
 
         try:
@@ -322,4 +329,4 @@ class SyncEngine:
             action="push", detail=detail,
         )
         stats.pushed += 1
-        stats.note(f"Pushed {title!r}: {from_server_key} -> {to_server_key} ({detail})")
+        stats.note(f"Pushed {title!r} ({user_name}): {from_server_key} -> {to_server_key} ({detail})")

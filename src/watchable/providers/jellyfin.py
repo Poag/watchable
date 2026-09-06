@@ -166,6 +166,7 @@ class JellyfinClient(MediaServerClient):
                 show_guids=show_guids,
                 season_number=int(item.get("ParentIndexNumber", 0) or 0),
                 episode_number=int(item.get("IndexNumber", 0) or 0),
+                show_title=item.get("SeriesName", "Unknown"),
             )
         else:
             item_guids = _extract_guids(item)

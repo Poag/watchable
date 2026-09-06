@@ -101,3 +101,19 @@ def test_sync_log_roundtrip(db):
     assert len(rows) == 1
     assert rows[0]["action"] == "push"
     assert rows[0]["pair_name"] == "p2j"
+
+
+def test_get_item_display_name_movie_is_just_the_title(db):
+    item_id = db.resolve_or_create_item(media_type="movie", title="Shawshank", year=1994, guid_keys=("imdb:tt1",))
+    assert db.get_item_display_name(item_id) == "Shawshank"
+
+
+def test_get_item_display_name_episode_includes_season_and_episode(db):
+    item_id = db.resolve_or_create_item(
+        media_type="episode", title="Andor", year=None, guid_keys=("tvdb:81189:S01E01",)
+    )
+    assert db.get_item_display_name(item_id) == "Andor S01E01"
+
+
+def test_get_item_display_name_missing_item_falls_back_to_placeholder(db):
+    assert db.get_item_display_name(999) == "item#999"

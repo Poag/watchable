@@ -27,7 +27,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from watchable.providers.base import WatchStateRecord
+from watchable.matching import parse_guid_key
+from watchable.providers.base import EPISODE, WatchStateRecord
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS items (
@@ -284,6 +285,22 @@ class Database:
             "SELECT guid_key FROM item_guids WHERE item_id = ?", (item_id,)
         ).fetchall()
         return [row["guid_key"] for row in rows]
+
+    def get_item_display_name(self, item_id: int) -> str:
+        """Human-readable label for logs: "Show S01E02" for episodes, else the title.
+
+        For episodes, ``title`` (see resolve_or_create_item) is the show's own
+        title, not the individual episode's -- season/episode numbers are
+        recovered from a stored guid key instead of a separate column.
+        """
+        title = self.get_item_title(item_id)
+        if self.get_item_media_type(item_id) != EPISODE:
+            return title
+        for key in self.get_guid_keys_for_item(item_id):
+            _, _, season, episode_number = parse_guid_key(key)
+            if season is not None and episode_number is not None:
+                return f"{title} S{season:02d}E{episode_number:02d}"
+        return title
 
     # -- audit log -------------------------------------------------------
 

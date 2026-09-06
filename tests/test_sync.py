@@ -257,7 +257,7 @@ def test_second_run_is_idempotent(db):
 def test_episode_matching_across_servers(db):
     src, dst = FakeClient("src"), FakeClient("dst")
     show_guids = GuidSet(tvdb="81189")
-    ep_info = EpisodeInfo(show_guids=show_guids, season_number=1, episode_number=1)
+    ep_info = EpisodeInfo(show_guids=show_guids, season_number=1, episode_number=1, show_title="Breaking Bad")
     src.add_item("s-e1", EPISODE, GuidSet(), episode=ep_info)
     dst.add_item("d-e1", EPISODE, GuidSet(), episode=ep_info)
     src.set_state("u1", "s-e1", played=True)
@@ -267,3 +267,8 @@ def test_episode_matching_across_servers(db):
 
     assert stats.pushed == 1
     assert dst.watch_state[("u1", "d-e1")]["played"] is True
+
+    # Log message shows "Show S01E01", not the (fake) episode-level title,
+    # alongside which (config-level) person it was synced for.
+    push_lines = [line for line in stats.log if line.startswith("Pushed")]
+    assert push_lines == ["Pushed 'Breaking Bad S01E01' (alex): src -> dst (played=True offset_ms=0)"]

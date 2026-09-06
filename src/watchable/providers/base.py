@@ -73,6 +73,10 @@ class EpisodeInfo:
     show_guids: GuidSet
     season_number: int
     episode_number: int
+    #: The show's own title (e.g. "Andor"), for display as "Andor S01E01" in
+    #: logs -- not part of matching identity, so it's fine to be empty when
+    #: rebuilt from stored guid keys alone (see matching.guids_from_stored_keys).
+    show_title: str = ""
 
 
 @dataclass(frozen=True)
