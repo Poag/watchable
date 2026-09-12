@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import responses
 
-from watchable.providers.base import EPISODE, MOVIE, GuidSet, ProviderError
+from watchable.providers.base import EPISODE, MOVIE, EpisodeInfo, GuidSet, ProviderError
 from watchable.providers.jellyfin import JellyfinClient
 
 BASE = "http://jf.example.lan:8096"
@@ -206,9 +206,14 @@ def test_find_item_by_guids_movie():
     responses.add(
         responses.GET,
         f"{BASE}/Items",
-        json={"Items": [{"Id": "m1"}]},
+        json={"Items": [{"Id": "m1", "ProviderIds": {"Imdb": "tt0111161"}}]},
         match=[responses.matchers.query_param_matcher(
-            {"Recursive": "true", "IncludeItemTypes": "Movie", "AnyProviderIdEquals": "imdb.tt0111161"}
+            {
+                "Recursive": "true",
+                "IncludeItemTypes": "Movie",
+                "AnyProviderIdEquals": "imdb.tt0111161",
+                "Fields": "ProviderIds",
+            }
         )],
     )
     client = make_client()
@@ -221,4 +226,37 @@ def test_find_item_by_guids_returns_none_when_not_found():
     responses.add(responses.GET, f"{BASE}/Items", json={"Items": []})
     client = make_client()
     result = client.find_item_by_guids(MOVIE, GuidSet(imdb="tt0000000"))
+    assert result is None
+
+
+@responses.activate
+def test_find_item_by_guids_movie_ignores_non_matching_result():
+    # AnyProviderIdEquals isn't reliably honored by every Jellyfin server --
+    # a production run showed it returning items from a completely
+    # unrelated show/movie instead of filtering. Don't trust a result that
+    # doesn't actually carry the requested guid.
+    responses.add(
+        responses.GET,
+        f"{BASE}/Items",
+        json={"Items": [{"Id": "wrong-movie", "ProviderIds": {"Imdb": "tt9999999"}}]},
+    )
+    client = make_client()
+    result = client.find_item_by_guids(MOVIE, GuidSet(imdb="tt0111161"))
+    assert result is None
+
+
+@responses.activate
+def test_find_item_by_guids_episode_ignores_wrong_series_from_broken_filter():
+    # Confirmed in production: a broken/ignored AnyProviderIdEquals filter
+    # returned an unrelated series, and every episode with the same
+    # season/episode number across totally different shows resolved to
+    # the same (wrong) target item as a result.
+    responses.add(
+        responses.GET,
+        f"{BASE}/Items",
+        json={"Items": [{"Id": "wrong-series", "ProviderIds": {"Tvdb": "99999"}}]},
+    )
+    client = make_client()
+    episode = EpisodeInfo(show_guids=GuidSet(tvdb="81189"), season_number=1, episode_number=7)
+    result = client.find_item_by_guids(EPISODE, GuidSet(), episode=episode)
     assert result is None

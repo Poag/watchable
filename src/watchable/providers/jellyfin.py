@@ -277,13 +277,20 @@ class JellyfinClient(MediaServerClient):
                         "Recursive": "true",
                         "IncludeItemTypes": item_type,
                         "AnyProviderIdEquals": f"{scheme}.{value}",
+                        "Fields": "ProviderIds",
                     },
                 )
             except ProviderError:
                 continue
-            items = data.get("Items", [])
-            if items:
-                return items[0]["Id"]
+            for item in data.get("Items", []):
+                # AnyProviderIdEquals isn't reliably honored by every
+                # Jellyfin server -- confirmed in production: it can return
+                # an item from a completely unrelated show instead of
+                # filtering at all, and trusting the first result blindly
+                # pushed watch state onto the wrong item every time.
+                # Verify the guid ourselves rather than trusting the filter.
+                if dict(_extract_guids(item).items()).get(scheme) == value:
+                    return item["Id"]
         return None
 
     def _find_episode_under_series(
