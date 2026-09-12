@@ -72,6 +72,15 @@ dashboard's user list, or via `GET /Users` with that key.
 - Marking unwatched: `DELETE /Users/{userId}/PlayedItems/{itemId}`.
 - Setting in-progress position: `POST /Users/{userId}/Items/{itemId}/UserData`
   with `{"PlaybackPositionTicks": ...}` (1 tick = 100ns, so 1ms = 10,000 ticks).
+- **Every push is verified**, not just trusted from a 2xx status: these
+  calls return success even when they had no real effect (observed:
+  `PlayedItems` returning `200` for a `userId` that isn't a real account
+  on that server, silently doing nothing). After pushing,
+  `set_watch_state` re-fetches `GET /Items/{itemId}?userId={userId}` and
+  raises if the server's own `UserData.Played` doesn't match what was
+  just pushed -- surfaced as a normal push failure (counted in
+  `errors`, logged with the item/user involved) rather than a false
+  "pushed" in the log and `sync_log`.
 - Cross-server lookup: `GET /Items?Recursive=true&IncludeItemTypes=Movie&AnyProviderIdEquals=<scheme>.<value>`.
 - Resolving an episode's show guids: `GET /Items/{seriesId}?Fields=ProviderIds&userId={userId}`.
   `userId` is required by some Jellyfin/Emby versions for this otherwise-

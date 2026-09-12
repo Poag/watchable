@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import pytest
 import responses
 
-from watchable.providers.base import EPISODE, MOVIE, GuidSet
+from watchable.providers.base import EPISODE, MOVIE, GuidSet, ProviderError
 from watchable.providers.jellyfin import JellyfinClient
 
 BASE = "http://jf.example.lan:8096"
@@ -143,6 +144,7 @@ def test_iter_watch_state_series_guid_failure_does_not_lose_other_items():
 @responses.activate
 def test_set_watch_state_played_calls_played_items_post():
     responses.add(responses.POST, f"{BASE}/Users/u1/PlayedItems/m1", json={})
+    responses.add(responses.GET, f"{BASE}/Items/m1", json={"UserData": {"Played": True}})
     client = make_client()
     client.set_watch_state("u1", "m1", played=True, view_offset_ms=0, runtime_ms=None)
     assert responses.calls[0].request.method == "POST"
@@ -153,12 +155,26 @@ def test_set_watch_state_played_calls_played_items_post():
 def test_set_watch_state_in_progress_calls_delete_then_userdata_post():
     responses.add(responses.DELETE, f"{BASE}/Users/u1/PlayedItems/m1", json={})
     responses.add(responses.POST, f"{BASE}/Users/u1/Items/m1/UserData", json={})
+    responses.add(responses.GET, f"{BASE}/Items/m1", json={"UserData": {"Played": False}})
     client = make_client()
     client.set_watch_state("u1", "m1", played=False, view_offset_ms=60_000, runtime_ms=7_200_000)
 
     assert responses.calls[0].request.method == "DELETE"
     assert responses.calls[1].request.method == "POST"
     assert responses.calls[1].request.url.endswith("/Users/u1/Items/m1/UserData")
+
+
+@responses.activate
+def test_set_watch_state_raises_when_push_had_no_effect():
+    # PlayedItems returns 2xx even for a user id that doesn't exist on this
+    # server -- reading the item back and finding it unchanged is what
+    # should actually surface the failure.
+    responses.add(responses.POST, f"{BASE}/Users/bad-user/PlayedItems/m1", json={})
+    responses.add(responses.GET, f"{BASE}/Items/m1", json={"UserData": {"Played": False}})
+    client = make_client()
+
+    with pytest.raises(ProviderError, match="still reports played=False"):
+        client.set_watch_state("bad-user", "m1", played=True, view_offset_ms=0, runtime_ms=None)
 
 
 @responses.activate

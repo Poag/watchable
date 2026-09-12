@@ -230,6 +230,23 @@ class JellyfinClient(MediaServerClient):
                 f"/Users/{server_user_id}/Items/{server_item_id}/UserData",
                 json_body={"PlaybackPositionTicks": _ms_to_ticks(view_offset_ms)},
             )
+        self._verify_pushed_played_state(server_user_id, server_item_id, played=played)
+
+    def _verify_pushed_played_state(self, server_user_id: str, server_item_id: str, *, played: bool) -> None:
+        """PlayedItems/UserData return 2xx even when they had no real effect
+        -- e.g. server_user_id doesn't correspond to a real account on this
+        server, or server_item_id is stale. Read the item back and confirm
+        the push actually took, rather than trusting a successful HTTP
+        status alone.
+        """
+        data = self._request("GET", f"/Items/{server_item_id}", params={"userId": server_user_id})
+        actual_played = bool((data.get("UserData") or {}).get("Played"))
+        if actual_played != played:
+            raise ProviderError(
+                f"{self.server_type} {self.name}: pushed played={played} to item {server_item_id} "
+                f"for user {server_user_id}, but the server still reports played={actual_played} -- "
+                "check that server_user_id is a real account on this server"
+            )
 
     def find_item_by_guids(
         self, media_type: MediaType, item_guids: GuidSet, episode: EpisodeInfo | None = None
