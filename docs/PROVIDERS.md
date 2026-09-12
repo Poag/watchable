@@ -81,7 +81,15 @@ dashboard's user list, or via `GET /Users` with that key.
   just pushed -- surfaced as a normal push failure (counted in
   `errors`, logged with the item/user involved) rather than a false
   "pushed" in the log and `sync_log`.
-- Cross-server lookup: `GET /Items?Recursive=true&IncludeItemTypes=Movie&AnyProviderIdEquals=<scheme>.<value>`.
+- Cross-server lookup: `GET /Items?Recursive=true&IncludeItemTypes=Movie&AnyProviderIdEquals=<scheme>.<value>&Fields=ProviderIds`.
+  **`AnyProviderIdEquals` is not trusted on its own** -- confirmed in
+  production on at least one Jellyfin server, it did not filter by guid at
+  all, so every episode sharing a season/episode number (S01E07, S01E01,
+  ...) across *completely unrelated shows* resolved to the identical
+  target item, silently pushing one show's watch state onto another
+  show's episode. `_find_id_by_guids` now requests `Fields=ProviderIds`
+  and verifies a candidate actually carries the requested provider id
+  before trusting it, discarding the filter's result otherwise.
 - Resolving an episode's show guids: `GET /Items/{seriesId}?Fields=ProviderIds&userId={userId}`.
   `userId` is required by some Jellyfin/Emby versions for this otherwise-
   unscoped lookup -- omitting it returns `400 Bad Request` on those. If one
@@ -90,12 +98,13 @@ dashboard's user list, or via `GET /Users` with that key.
   aborting the rest of that user's pull -- logged as a warning, not an error.
 
 **Known limitations / verify against your version:**
-- `AnyProviderIdEquals` is the one part of this integration most likely to
-  need adjusting for an older Jellyfin server -- it's a relatively recent
-  addition to the Items endpoint. Run `watchable test-connections` and a
-  `--dry-run` sync after upgrading Jellyfin to confirm lookups still find
-  matches; if they stop working, `EmbyClient`'s client-side scan approach
-  (see below) is the fallback pattern to switch `JellyfinClient` to.
+- `AnyProviderIdEquals` support (or lack of it) varies enough across
+  Jellyfin versions that it's now only ever used as a pre-filter, never
+  trusted directly -- see above. If a server ignores it entirely
+  (returning the whole unfiltered collection), the client-side guid check
+  still finds a correct match, just at the cost of scanning more items
+  per lookup; `EmbyClient`'s client-side scan (see below) is the same
+  pattern taken further, for a server that has no such filter at all.
 - Provider ID key casing (`Imdb` vs `IMDb` vs `imdb`) has varied across
   Jellyfin versions; `_extract_guids` lower-cases keys before matching to
   be resilient to this, but a version using a materially different scheme
