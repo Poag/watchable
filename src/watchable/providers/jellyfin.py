@@ -238,9 +238,16 @@ class JellyfinClient(MediaServerClient):
         server, or server_item_id is stale. Read the item back and confirm
         the push actually took, rather than trusting a successful HTTP
         status alone.
+
+        Uses `GET /Users/{userId}/Items?Ids=...` -- the same fully
+        path-scoped endpoint shape `iter_watch_state` already relies on to
+        read UserData correctly for thousands of items every run -- rather
+        than the newer unscoped `/Items/{id}?userId=` route, in case a
+        server disagrees between the two about per-user played state.
         """
-        data = self._request("GET", f"/Items/{server_item_id}", params={"userId": server_user_id})
-        actual_played = bool((data.get("UserData") or {}).get("Played"))
+        data = self._request("GET", f"/Users/{server_user_id}/Items", params={"Ids": server_item_id})
+        items = data.get("Items", [])
+        actual_played = bool((items[0].get("UserData") or {}).get("Played")) if items else False
         if actual_played != played:
             raise ProviderError(
                 f"{self.server_type} {self.name}: pushed played={played} to item {server_item_id} "

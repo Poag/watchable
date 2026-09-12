@@ -144,7 +144,11 @@ def test_iter_watch_state_series_guid_failure_does_not_lose_other_items():
 @responses.activate
 def test_set_watch_state_played_calls_played_items_post():
     responses.add(responses.POST, f"{BASE}/Users/u1/PlayedItems/m1", json={})
-    responses.add(responses.GET, f"{BASE}/Items/m1", json={"UserData": {"Played": True}})
+    responses.add(
+        responses.GET,
+        f"{BASE}/Users/u1/Items",
+        json={"Items": [{"Id": "m1", "UserData": {"Played": True}}]},
+    )
     client = make_client()
     client.set_watch_state("u1", "m1", played=True, view_offset_ms=0, runtime_ms=None)
     assert responses.calls[0].request.method == "POST"
@@ -155,7 +159,11 @@ def test_set_watch_state_played_calls_played_items_post():
 def test_set_watch_state_in_progress_calls_delete_then_userdata_post():
     responses.add(responses.DELETE, f"{BASE}/Users/u1/PlayedItems/m1", json={})
     responses.add(responses.POST, f"{BASE}/Users/u1/Items/m1/UserData", json={})
-    responses.add(responses.GET, f"{BASE}/Items/m1", json={"UserData": {"Played": False}})
+    responses.add(
+        responses.GET,
+        f"{BASE}/Users/u1/Items",
+        json={"Items": [{"Id": "m1", "UserData": {"Played": False}}]},
+    )
     client = make_client()
     client.set_watch_state("u1", "m1", played=False, view_offset_ms=60_000, runtime_ms=7_200_000)
 
@@ -170,7 +178,23 @@ def test_set_watch_state_raises_when_push_had_no_effect():
     # server -- reading the item back and finding it unchanged is what
     # should actually surface the failure.
     responses.add(responses.POST, f"{BASE}/Users/bad-user/PlayedItems/m1", json={})
-    responses.add(responses.GET, f"{BASE}/Items/m1", json={"UserData": {"Played": False}})
+    responses.add(
+        responses.GET,
+        f"{BASE}/Users/bad-user/Items",
+        json={"Items": [{"Id": "m1", "UserData": {"Played": False}}]},
+    )
+    client = make_client()
+
+    with pytest.raises(ProviderError, match="still reports played=False"):
+        client.set_watch_state("bad-user", "m1", played=True, view_offset_ms=0, runtime_ms=None)
+
+
+@responses.activate
+def test_set_watch_state_raises_when_item_missing_from_readback():
+    # A userId that isn't a real account can also make the readback
+    # itself come back empty rather than merely showing Played=false.
+    responses.add(responses.POST, f"{BASE}/Users/bad-user/PlayedItems/m1", json={})
+    responses.add(responses.GET, f"{BASE}/Users/bad-user/Items", json={"Items": []})
     client = make_client()
 
     with pytest.raises(ProviderError, match="still reports played=False"):
