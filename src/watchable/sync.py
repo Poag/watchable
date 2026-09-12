@@ -291,7 +291,10 @@ class SyncEngine:
                 stats.skipped_no_match += 1
                 return
 
-        detail = f"played={from_state.played} offset_ms={from_state.view_offset_ms}"
+        detail = (
+            f"played={from_state.played} offset_ms={from_state.view_offset_ms} "
+            f"target_item_id={to_item_id}"
+        )
 
         if dry_run:
             self.db.log_sync_action(

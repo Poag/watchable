@@ -269,6 +269,10 @@ def test_episode_matching_across_servers(db):
     assert dst.watch_state[("u1", "d-e1")]["played"] is True
 
     # Log message shows "Show S01E01", not the (fake) episode-level title,
-    # alongside which (config-level) person it was synced for.
+    # alongside which (config-level) person it was synced for, and the
+    # resolved target item id -- so a wrong-item match (e.g. a duplicate
+    # library entry) is visible directly in the log.
     push_lines = [line for line in stats.log if line.startswith("Pushed")]
-    assert push_lines == ["Pushed 'Breaking Bad S01E01' (alex): src -> dst (played=True offset_ms=0)"]
+    assert push_lines == [
+        "Pushed 'Breaking Bad S01E01' (alex): src -> dst (played=True offset_ms=0 target_item_id=d-e1)"
+    ]
