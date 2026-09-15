@@ -17,7 +17,7 @@ from watchable.app import backup_dir_path, build_clients, configure_logging, dat
 from watchable.backup import create_backup, list_backups, purge_old_backups, restore_backup
 from watchable.config import AppConfig, ConfigError, load_config
 from watchable.providers.base import ProviderError
-from watchable.sync import SyncEngine
+from watchable.sync import SyncEngine, SyncStats
 
 console = Console()
 logger = logging.getLogger("watchable.cli")
@@ -70,7 +70,9 @@ def sync_cmd(config_path: str, dry_run: bool) -> None:
     """Run a single sync pass."""
     config = _load_or_exit(config_path)
     configure_logging(config.log_level)
-    _run_once(config, dry_run=dry_run)
+    stats = _run_once(config, dry_run=dry_run)
+    if stats.errors:
+        sys.exit(1)
 
 
 @main.command("run")
@@ -86,6 +88,11 @@ def run_cmd(config_path: str, dry_run: bool) -> None:
     If `backup.interval_hours` is set, this loop also takes a database
     backup on that cadence -- independent of the sync interval -- and purges
     backups older than `backup.keep_days` afterwards.
+
+    A pass with errors (e.g. a server unreachable that cycle) never stops
+    the loop -- it's logged (see that pass's `errors=N` summary line) and
+    the next scheduled pass runs as normal. Unlike `sync`, a single bad
+    cycle here isn't a reason to exit a long-lived process.
     """
     config = _load_or_exit(config_path)
     configure_logging(config.log_level)
@@ -105,7 +112,7 @@ def run_cmd(config_path: str, dry_run: bool) -> None:
     while True:
         now = time.monotonic()
         if now >= next_sync_at:
-            _run_once(config, dry_run=dry_run)
+            _run_once(config, dry_run=dry_run)  # errors are logged, not fatal -- see run_cmd's docstring
             next_sync_at = time.monotonic() + interval * 60
         if backup_interval_seconds is not None and next_backup_at is not None and now >= next_backup_at:
             _run_backup(config)
@@ -266,7 +273,7 @@ def _load_or_exit(config_path: str) -> AppConfig:
         sys.exit(1)
 
 
-def _run_once(config: AppConfig, *, dry_run: bool) -> None:
+def _run_once(config: AppConfig, *, dry_run: bool) -> SyncStats:
     clients = build_clients(config)
     with open_database(config) as db:
         engine = SyncEngine(config, db, clients)
@@ -280,8 +287,7 @@ def _run_once(config: AppConfig, *, dry_run: bool) -> None:
         stats.skipped_no_match,
         stats.errors,
     )
-    if stats.errors:
-        sys.exit(1)
+    return stats
 
 
 if __name__ == "__main__":
