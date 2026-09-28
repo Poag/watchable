@@ -3,6 +3,24 @@
 How each client in `watchable/providers/` maps onto its server's real HTTP
 API, and the caveats worth knowing before you rely on it.
 
+## Retries
+
+Every provider request goes through a shared retry (`watchable.providers.base.retry_on_transient_error`,
+built on `tenacity`): up to 3 attempts total, with short exponential
+backoff (1s, then 2s) between them. It only retries what looks transient --
+connection errors, timeouts, `429`, `5xx`, and `401` -- not `400`/`404`,
+where retrying can't help. `401` is included deliberately: observed in
+production, a single push 401'd immediately after a bulk pull succeeded
+with the exact same credentials in the same run, which only makes sense as
+a momentary server-side hiccup, not a real auth failure. A genuinely wrong
+API key or token still fails, just after 3 quick attempts (a few seconds)
+instead of one.
+
+This is a per-request safety net, not a substitute for the run-level
+behavior: a pull or push that still fails after retrying is logged and
+counted in `errors` (see `watchable.sync`), never fatal to the rest of that
+pass or to `watchable run`'s loop.
+
 ## Plex
 
 **Getting a token.** Plex has no concept of "API key" -- every request

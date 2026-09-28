@@ -38,6 +38,7 @@ from watchable.providers.base import (
     MediaType,
     ProviderError,
     WatchStateRecord,
+    retry_on_transient_error,
 )
 
 _ITEM_TYPE_FOR_MEDIA = {MOVIE: "Movie", EPISODE: "Episode"}
@@ -86,6 +87,7 @@ class JellyfinClient(MediaServerClient):
 
     # -- HTTP plumbing -----------------------------------------------------
 
+    @retry_on_transient_error
     def _request(
         self,
         method: str,

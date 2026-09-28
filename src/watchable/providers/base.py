@@ -14,7 +14,9 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
 
+import requests
 import urllib3
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger("watchable.providers")
 
@@ -110,6 +112,43 @@ class WatchStateRecord:
 
 class ProviderError(RuntimeError):
     """Raised for any provider-side failure (auth, network, unexpected payload)."""
+
+
+#: HTTP statuses worth a couple of quick retries rather than failing the
+#: item outright -- connection resets and timeouts are always included
+#: (see _is_retryable below); 401 is here too because a media server can
+#: momentarily reject an otherwise-valid request (observed in production:
+#: a single push 401'd immediately after a bulk pull succeeded with the
+#: exact same credentials) without the credentials actually being bad.
+_RETRYABLE_STATUS_CODES = frozenset({401, 429, 500, 502, 503, 504})
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    """Whether a ProviderError raised by a provider's `_request` is worth retrying.
+
+    Providers wrap the underlying `requests` exception with `raise
+    ProviderError(...) from exc`, so the original is on `__cause__`.
+    """
+    if not isinstance(exc, ProviderError):
+        return False
+    cause = exc.__cause__
+    if isinstance(cause, requests.exceptions.HTTPError):
+        response = cause.response
+        return response is not None and response.status_code in _RETRYABLE_STATUS_CODES
+    return isinstance(cause, (requests.exceptions.ConnectionError, requests.exceptions.Timeout))
+
+
+#: Applied to each provider's `_request` method. A handful of quick
+#: retries (a few seconds total, worst case) for a transient failure beats
+#: waiting for the next scheduled sync pass, without masking a genuinely
+#: broken config -- three attempts still fail fast when a server or its
+#: credentials are actually wrong.
+retry_on_transient_error = retry(
+    retry=retry_if_exception(_is_retryable),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=4),
+    reraise=True,
+)
 
 
 class MediaServerClient(abc.ABC):

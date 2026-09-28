@@ -27,6 +27,34 @@ def test_list_users():
 
 
 @responses.activate
+def test_request_retries_transient_401_then_succeeds():
+    # Reproduces a production incident: a push 401'd once, immediately
+    # after a bulk pull succeeded with the same credentials -- transient,
+    # not a real auth failure. A couple of quick retries should recover.
+    responses.add(responses.GET, f"{BASE}/System/Info", status=401)
+    responses.add(responses.GET, f"{BASE}/System/Info", status=401)
+    responses.add(responses.GET, f"{BASE}/System/Info", json={"Id": "server1"})
+    client = make_client()
+
+    client.test_connection()  # would raise ProviderError without the retry
+
+    assert len(responses.calls) == 3
+
+
+@responses.activate
+def test_request_gives_up_after_repeated_failures():
+    responses.add(responses.GET, f"{BASE}/System/Info", status=401)
+    responses.add(responses.GET, f"{BASE}/System/Info", status=401)
+    responses.add(responses.GET, f"{BASE}/System/Info", status=401)
+    client = make_client()
+
+    with pytest.raises(ProviderError):
+        client.test_connection()
+
+    assert len(responses.calls) == 3  # stop_after_attempt(3) -- no fourth try
+
+
+@responses.activate
 def test_iter_watch_state_skips_untouched_items():
     responses.add(
         responses.GET,

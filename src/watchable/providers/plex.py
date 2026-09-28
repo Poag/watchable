@@ -37,6 +37,7 @@ from watchable.providers.base import (
     MediaType,
     ProviderError,
     WatchStateRecord,
+    retry_on_transient_error,
 )
 
 _TYPE_FOR_MEDIA = {MOVIE: 1, EPISODE: 4}
@@ -54,6 +55,7 @@ class PlexClient(MediaServerClient):
 
     # -- HTTP plumbing ---------------------------------------------------
 
+    @retry_on_transient_error
     def _request(
         self, method: str, path: str, *, user_token: str | None = None, params: dict[str, Any] | None = None
     ) -> dict[str, Any]:
