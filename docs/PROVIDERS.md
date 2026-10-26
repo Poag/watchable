@@ -21,6 +21,32 @@ behavior: a pull or push that still fails after retrying is logged and
 counted in `errors` (see `watchable.sync`), never fatal to the rest of that
 pass or to `watchable run`'s loop.
 
+## Stale cached target ids
+
+A successful push caches the resolved target `server_item_id` locally
+(`Database.copy_watch_state`) so later cycles don't need to re-run
+`find_item_by_guids` every time. If that id stops being valid on the
+target server -- the item got deleted and recreated under a new id, a
+library reorganization, a permission change making it inaccessible to that
+user -- every future push to it fails the exact same way, forever, since
+nothing ever triggers a fresh lookup for an item that already has *some*
+cached mapping (even one that no longer works). This is a different failure
+shape than the transient blip the retry logic above handles: it's the
+*same* item failing on *every* cycle, not an occasional one-off, and it
+survives all 3 retry attempts every time because the id itself is wrong,
+not the server.
+
+`watchable.sync._push` tells the two apart by whether the failure happened
+on a cached id (`to_state` was already set) versus a fresh resolution, and
+whether the error is a `401`/`403`/`404`
+(`watchable.providers.base.looks_like_stale_target`). When both are true,
+it drops the cached row (`Database.delete_watch_state`) so the next sync
+pass re-resolves the target from guids instead of repeating the same dead
+push indefinitely -- logged as `Cleared cached <server> target for
+<title> -- will re-resolve next sync`. A `5xx`/`429`/connection failure on
+a cached id does *not* clear it, since that points at the server being
+down, not the id being wrong.
+
 ## Plex
 
 **Getting a token.** Plex has no concept of "API key" -- every request

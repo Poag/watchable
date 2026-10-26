@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import requests
+
 from watchable.config import (
     AppConfig,
     ConflictStrategy,
@@ -26,6 +28,7 @@ from watchable.providers.base import (
     EpisodeInfo,
     GuidSet,
     MediaServerClient,
+    ProviderError,
     WatchStateRecord,
 )
 from watchable.sync import SyncEngine
@@ -95,6 +98,23 @@ class FakeClient(MediaServerClient):
             elif set(guids.canonical_keys()) & set(item_guids.canonical_keys()):
                 return server_item_id
         return None
+
+
+class FlakyClient(FakeClient):
+    """Like FakeClient, but set_watch_state can be told to fail for specific ids."""
+
+    def __init__(self, name: str):
+        super().__init__(name)
+        self.fail_item_ids: set[str] = set()
+
+    def set_watch_state(self, server_user_id, server_item_id, *, played, view_offset_ms, runtime_ms):
+        if server_item_id in self.fail_item_ids:
+            response = requests.Response()
+            response.status_code = 401
+            raise ProviderError("401 for stale item") from requests.exceptions.HTTPError(response=response)
+        super().set_watch_state(
+            server_user_id, server_item_id, played=played, view_offset_ms=view_offset_ms, runtime_ms=runtime_ms
+        )
 
 
 def make_config(pairs: list[SyncPairConfig], strategy: ConflictStrategy = ConflictStrategy.MOST_WATCHED) -> AppConfig:
@@ -276,3 +296,45 @@ def test_episode_matching_across_servers(db):
     assert push_lines == [
         "Pushed 'Breaking Bad S01E01' (alex): src -> dst (played=True offset_ms=0 target_item_id=d-e1)"
     ]
+
+
+def test_push_failure_on_cached_target_clears_it_for_next_resolve(db):
+    """A 401/403/404 on a *cached* target id (one already pushed to
+    successfully before, not freshly resolved this run) means that id is
+    probably stale now -- e.g. the item was deleted and recreated on the
+    target server -- not that the server is transiently down. Without
+    clearing the cache, every future cycle would retry the same dead id and
+    fail identically forever; it should instead drop the mapping so the
+    next run re-resolves via guids and finds the item's new id.
+    """
+    src, dst = FakeClient("src"), FlakyClient("dst")
+    guids = GuidSet(imdb="tt1")
+    src.add_item("s1", MOVIE, guids)
+    dst.add_item("d1", MOVIE, guids)
+    src.set_state("u1", "s1", played=True)
+
+    config = make_config([SyncPairConfig(name="p", source="src", target="dst", direction=Direction.ONE_WAY)])
+    engine = SyncEngine(config, db, {"src": src, "dst": dst})
+
+    first = engine.run()
+    assert first.pushed == 1
+    assert dst.watch_state[("u1", "d1")]["played"] is True
+
+    # The item gets deleted and recreated under a new id on the target
+    # server -- the old cached mapping (to d1) is now permanently invalid.
+    del dst.library["d1"]
+    del dst.watch_state[("u1", "d1")]
+    dst.add_item("d2", MOVIE, guids)
+    dst.fail_item_ids.add("d1")
+    # played flips so the cached target state ("played=True") now visibly
+    # differs and a re-push is attempted (an unplayed/offset-only change
+    # within VIEW_OFFSET_TOLERANCE_MS wouldn't trigger one).
+    src.set_state("u1", "s1", played=False, view_offset_ms=600_000)
+
+    second = engine.run()
+    assert second.pushed == 0
+    assert second.errors == 1
+
+    third = engine.run()
+    assert third.pushed == 1
+    assert dst.watch_state[("u1", "d2")]["played"] is False

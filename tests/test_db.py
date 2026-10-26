@@ -121,6 +121,32 @@ def test_copy_watch_state(db):
     assert copied.played is True
 
 
+def test_delete_watch_state_removes_cached_row(db):
+    item_id = db.resolve_or_create_item(media_type="movie", title="Shawshank", year=1994, guid_keys=("imdb:tt1",))
+    db.record_watch_state(item_id=item_id, user_name="alex", server_key="jellyfin", record=_record())
+    assert db.get_watch_state(item_id=item_id, user_name="alex", server_key="jellyfin") is not None
+
+    db.delete_watch_state(item_id=item_id, user_name="alex", server_key="jellyfin")
+
+    assert db.get_watch_state(item_id=item_id, user_name="alex", server_key="jellyfin") is None
+
+
+def test_delete_watch_state_only_affects_matching_server(db):
+    item_id = db.resolve_or_create_item(media_type="movie", title="Shawshank", year=1994, guid_keys=("imdb:tt1",))
+    db.record_watch_state(item_id=item_id, user_name="alex", server_key="plex", record=_record())
+    db.record_watch_state(item_id=item_id, user_name="alex", server_key="jellyfin", record=_record())
+
+    db.delete_watch_state(item_id=item_id, user_name="alex", server_key="jellyfin")
+
+    assert db.get_watch_state(item_id=item_id, user_name="alex", server_key="plex") is not None
+    assert db.get_watch_state(item_id=item_id, user_name="alex", server_key="jellyfin") is None
+
+
+def test_delete_watch_state_missing_row_is_a_no_op(db):
+    item_id = db.resolve_or_create_item(media_type="movie", title="Shawshank", year=1994, guid_keys=("imdb:tt1",))
+    db.delete_watch_state(item_id=item_id, user_name="alex", server_key="jellyfin")  # should not raise
+
+
 def test_sync_log_roundtrip(db):
     item_id = db.resolve_or_create_item(media_type="movie", title="Shawshank", year=1994, guid_keys=("imdb:tt1",))
     db.log_sync_action(

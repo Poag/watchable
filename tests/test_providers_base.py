@@ -5,7 +5,7 @@ import warnings
 import requests
 import urllib3
 
-from watchable.providers.base import ProviderError, _is_retryable
+from watchable.providers.base import ProviderError, _is_retryable, looks_like_stale_target
 from watchable.providers.plex import PlexClient
 
 
@@ -55,6 +55,31 @@ def test_is_retryable_false_for_non_provider_error():
 
 def test_is_retryable_false_for_provider_error_without_cause():
     assert _is_retryable(ProviderError("no cause set")) is False
+
+
+def test_looks_like_stale_target_true_for_401_403_404():
+    for status in (401, 403, 404):
+        assert looks_like_stale_target(_provider_error_from(_http_error(status))) is True
+
+
+def test_looks_like_stale_target_false_for_5xx_and_429():
+    # Server-side/rate-limit trouble, not a sign the cached item id itself
+    # is wrong -- clearing the cache here would just cause an unnecessary
+    # re-lookup next cycle without addressing the real problem.
+    for status in (429, 500, 502, 503, 504):
+        assert looks_like_stale_target(_provider_error_from(_http_error(status))) is False
+
+
+def test_looks_like_stale_target_false_for_connection_error():
+    assert looks_like_stale_target(_provider_error_from(requests.exceptions.ConnectionError())) is False
+
+
+def test_looks_like_stale_target_false_for_non_provider_error():
+    assert looks_like_stale_target(ValueError("not a ProviderError")) is False
+
+
+def test_looks_like_stale_target_false_for_provider_error_without_cause():
+    assert looks_like_stale_target(ProviderError("no cause set")) is False
 
 
 def test_verify_tls_false_suppresses_insecure_request_warning(caplog):

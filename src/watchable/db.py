@@ -393,6 +393,21 @@ class Database:
                 ),
             )
 
+    def delete_watch_state(self, *, item_id: int, user_name: str, server_key: str) -> None:
+        """Drop a cached (item, user, server) row so it gets re-resolved fresh.
+
+        Used when a push to a previously-cached ``server_item_id`` fails in a
+        way that suggests the id itself is wrong now (deleted, moved,
+        permission changed) rather than the server being transiently
+        unreachable -- otherwise ``_push`` would keep reusing that same bad
+        id forever instead of re-running ``find_item_by_guids``.
+        """
+        with self.transaction() as conn:
+            conn.execute(
+                "DELETE FROM watch_state WHERE item_id = ? AND user_name = ? AND server_key = ?",
+                (item_id, user_name, server_key),
+            )
+
     def recent_log(self, limit: int = 50) -> list[sqlite3.Row]:
         return self.conn.execute(
             "SELECT * FROM sync_log ORDER BY id DESC LIMIT ?", (limit,)

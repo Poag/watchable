@@ -151,6 +151,37 @@ retry_on_transient_error = retry(
 )
 
 
+#: Statuses that mean "this specific item id isn't valid for this request
+#: any more" (deleted, moved, or no longer accessible to this user) rather
+#: than a server/network hiccup -- 401 overlaps with _RETRYABLE_STATUS_CODES
+#: deliberately, since the same status can mean either; retrying already
+#: handles the transient case, so if it still fails after retries it's
+#: worth treating the cached target as suspect too.
+_STALE_TARGET_STATUS_CODES = frozenset({401, 403, 404})
+
+
+def looks_like_stale_target(exc: BaseException) -> bool:
+    """Whether a push failure suggests the *target item id* itself is bad.
+
+    Sync caches a resolved ``server_item_id`` after a successful push and
+    reuses it on later cycles without re-resolving (see
+    ``sync._push``). If that cached id stops being valid -- the item was
+    deleted/moved on the target server, or a permission change makes it
+    inaccessible to that user -- every future push to it fails the same way
+    forever, since nothing ever triggers a fresh ``find_item_by_guids``
+    lookup. This flags that case so the caller can drop the cached mapping
+    and let it re-resolve next time instead of repeating the same failure
+    indefinitely.
+    """
+    if not isinstance(exc, ProviderError):
+        return False
+    cause = exc.__cause__
+    if isinstance(cause, requests.exceptions.HTTPError):
+        response = cause.response
+        return response is not None and response.status_code in _STALE_TARGET_STATUS_CODES
+    return False
+
+
 class MediaServerClient(abc.ABC):
     """Base class every Plex/Jellyfin/Emby-style client implements."""
 

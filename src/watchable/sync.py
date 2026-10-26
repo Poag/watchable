@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from watchable.config import AppConfig, ConflictStrategy, Direction, SyncPairConfig
 from watchable.db import Database, StoredWatchState
 from watchable.matching import build_guid_keys, guids_from_stored_keys
-from watchable.providers.base import MediaServerClient, WatchStateRecord
+from watchable.providers.base import MediaServerClient, WatchStateRecord, looks_like_stale_target
 
 logger = logging.getLogger("watchable.sync")
 
@@ -317,9 +317,23 @@ class SyncEngine:
                 view_offset_ms=from_state.view_offset_ms,
                 runtime_ms=from_state.runtime_ms,
             )
-        except Exception:
+        except Exception as exc:
             logger.exception("Push failed: %s -> %s for %r", from_server_key, to_server_key, title)
             stats.errors += 1
+            if to_state is not None and looks_like_stale_target(exc):
+                # to_item_id came from a cached row, not a fresh lookup this
+                # cycle -- a 401/403/404 on it means that id is probably no
+                # longer valid (deleted, moved, permission changed), and
+                # without this it would fail the exact same way forever.
+                # Clearing it makes the next cycle re-resolve via
+                # find_item_by_guids instead of retrying a dead id.
+                self.db.delete_watch_state(
+                    item_id=item_id, user_name=user_name, server_key=to_server_key
+                )
+                logger.warning(
+                    "Cleared cached %s target for %r -- will re-resolve next sync",
+                    to_server_key, title,
+                )
             return
 
         self.db.copy_watch_state(
