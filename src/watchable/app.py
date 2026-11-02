@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from watchable import __version__
 from watchable.config import AppConfig, ServerConfig
 from watchable.db import Database
 from watchable.providers.base import MediaServerClient
@@ -58,3 +59,7 @@ def configure_logging(level: str) -> None:
         level=getattr(logging, level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    # Confirmed useful in production tracking down whether a restarted
+    # container had actually picked up a new image -- traceback line
+    # numbers alone don't say that, but the running version does.
+    logging.getLogger("watchable").info("watchable %s starting", __version__)
