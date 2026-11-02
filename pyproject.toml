@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "watchable"
-version = "0.1.0"
+version = "0.2.0"
 description = "Sync watch state (played/unplayed, progress) between Plex, Jellyfin, and Emby through a local database, with YAML-configured directional or bidirectional sync rules."
 readme = "README.md"
 requires-python = ">=3.10"
