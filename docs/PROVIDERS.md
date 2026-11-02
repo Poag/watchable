@@ -107,8 +107,18 @@ dashboard's user list, or via `GET /Users` with that key.
 
 **What's actually implemented** (`watchable/providers/jellyfin.py`):
 
-- Auth: `X-Emby-Token: <api key>` header (kept from Jellyfin's Emby
-  ancestry; still the correct header on current Jellyfin).
+- Auth: both `X-Emby-Token: <api key>` (the legacy Emby-ancestry header)
+  and `Authorization: MediaBrowser Client="watchable", Device="watchable",
+  DeviceId="watchable", Version="<pkg version>", Token="<api key>"` are
+  sent on every request. **Jellyfin 12.x disables legacy token-only auth by
+  default** -- a request carrying only `X-Emby-Token` gets a flat `401`
+  regardless of key validity. Confirmed directly in production against a
+  real Jellyfin 12.4.0 server: a brand-new API key, tested with curl
+  straight from the Jellyfin host against the simplest possible endpoint
+  (`GET /System/Info`), still 401'd -- ruling out the key, watchable's
+  network path, caching, disk space, permissions, and plugins before
+  landing on this. `_auth_headers` sends both forms so older Jellyfin/Emby
+  servers that only recognize the legacy header keep working unchanged.
 - Reading watch state: `GET /Users/{userId}/Items?Recursive=true&IncludeItemTypes=Movie,Episode&Fields=ProviderIds`.
   Each item DTO carries `UserData.Played` / `UserData.PlaybackPositionTicks`
   for the requesting user directly.

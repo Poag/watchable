@@ -27,6 +27,28 @@ def test_list_users():
 
 
 @responses.activate
+def test_request_sends_mediabrowser_authorization_header_alongside_legacy_token():
+    # Jellyfin 12.x rejects auth carried only via X-Emby-Token with a flat
+    # 401, regardless of key validity -- confirmed in production against a
+    # real Jellyfin 12.4.0 server (a brand-new key still 401'd on the
+    # simplest possible call). It requires the key inside a MediaBrowser-
+    # scheme Authorization header instead. Both headers go out so older
+    # Jellyfin/Emby servers that only recognize the legacy header still work.
+    responses.add(responses.GET, f"{BASE}/System/Info", json={"Id": "server1"})
+    client = make_client()
+
+    client.test_connection()
+
+    sent = responses.calls[0].request.headers
+    assert sent["X-Emby-Token"] == "testkey"
+    authorization = sent["Authorization"]
+    assert authorization.startswith("MediaBrowser ")
+    assert 'Token="testkey"' in authorization
+    assert 'Client="watchable"' in authorization
+    assert 'DeviceId="watchable"' in authorization
+
+
+@responses.activate
 def test_request_retries_transient_401_then_succeeds():
     # Reproduces a production incident: a push 401'd once, immediately
     # after a bulk pull succeeded with the same credentials -- transient,

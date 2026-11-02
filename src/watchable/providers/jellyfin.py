@@ -4,7 +4,16 @@ Jellyfin exposes user-scoped watch state directly (unlike Plex, one API key
 can read and write any user's data), which makes this the more
 straightforward of the three providers:
 
-- Auth: ``X-Emby-Token: <api key>`` header (kept from its Emby ancestry).
+- Auth: both ``X-Emby-Token: <api key>`` (the historical Emby-ancestry
+  header) and ``Authorization: MediaBrowser ..., Token="<api key>"`` are
+  sent on every request. Jellyfin 12.x disabled this "legacy" token-only
+  auth by default -- a request carrying only ``X-Emby-Token`` gets a flat
+  401 regardless of whether the key is valid, confirmed in production
+  against a real Jellyfin 12.4.0 server (a freshly-generated key, tested
+  directly against ``/System/Info`` with curl, still 401'd). The
+  ``Authorization`` header is the form Jellyfin's docs describe as current;
+  sending both covers older Jellyfin/Emby servers that only recognize the
+  legacy header, so nothing about `docs/CONFIGURATION.md`'s setup changes.
 - Users: ``GET /Users``.
 - Watch state: ``GET /Users/{userId}/Items`` with ``Fields=ProviderIds`` --
   each item DTO carries its own ``UserData.Played`` /
@@ -28,6 +37,7 @@ from typing import Any
 
 import requests
 
+from watchable import __version__
 from watchable.providers.base import (
     EPISODE,
     MOVIE,
@@ -87,6 +97,22 @@ class JellyfinClient(MediaServerClient):
 
     # -- HTTP plumbing -----------------------------------------------------
 
+    def _auth_headers(self) -> dict[str, str]:
+        # Jellyfin 12.x rejects auth carried only via X-Emby-Token with a
+        # flat 401, regardless of the key's validity -- it requires the key
+        # inside a MediaBrowser-scheme Authorization header instead (see the
+        # module docstring). Sending both covers that and older Jellyfin/Emby
+        # servers that only recognize the legacy header.
+        media_browser = (
+            f'MediaBrowser Client="watchable", Device="watchable", '
+            f'DeviceId="watchable", Version="{__version__}", Token="{self.api_key}"'
+        )
+        return {
+            self.auth_header: self.api_key,
+            "Authorization": media_browser,
+            "Accept": "application/json",
+        }
+
     @retry_on_transient_error
     def _request(
         self,
@@ -96,7 +122,7 @@ class JellyfinClient(MediaServerClient):
         params: dict[str, Any] | None = None,
         json_body: dict[str, Any] | None = None,
     ) -> Any:
-        headers = {self.auth_header: self.api_key, "Accept": "application/json"}
+        headers = self._auth_headers()
         try:
             resp = requests.request(
                 method,
